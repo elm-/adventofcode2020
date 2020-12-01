@@ -35,11 +35,13 @@ object Day1 extends App {
     case (_, Some(result)) => Some(result)
     case (_ :: Nil, _) => None
     case (x :: tail, _) =>
-      val result = tail.foldLeft(None: Option[Result]) {
+      tail.foldLeft(None: Option[Result]) {
         case (None, y) if x + y == 2020 => Some((x, y, x * y))
         case (r, _) => r
+      } match {
+        case None => funcTailRecursive(tail, None)
+        case result => result
       }
-      funcTailRecursive(tail, result)
   }
 
   def stressTest(fn: (List[Int] => Option[Result])): Unit = {
