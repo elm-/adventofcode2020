@@ -31,5 +31,7 @@ object Day1Part2 extends App {
   stressTest(efficientSolution)
 
   val dayTestData = Source.fromFile("./adventofcode-data/day1_input.txt").getLines().map(_.toInt).toList
+  stressTest(efficientSolution)
+
   println(efficientSolution(dayTestData))
 }
