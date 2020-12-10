@@ -43,4 +43,3 @@ object Day9Step2 extends App with RegexParsers {
   assert(findInvalidSum(parseInput(TEST_DATA), sum = 127) == (15, 47))
   println(findInvalidSum(parseInput(Source.fromFile("./adventofcode-data/day9_input.txt").mkString), sum = 31161678))
 }
-5453868
