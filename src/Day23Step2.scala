@@ -46,8 +46,6 @@ object Day23Step2 extends App {
   // actual linked list may be an option since it is all about re-arranging
   // otherwise slow is the findNextIndex function that needs to iterate, using a map to keep an updated
   // reverse index of all number's current location would in parallel would solve that
-  // update: after looking at some other scala solutions, this one is actually very smart, doing both in one data structure:
-  // https://github.com/sim642/adventofcode/blob/master/src/main/scala/eu/sim642/adventofcode2020/Day23.scala
   assert(calculate(parseInput(TEST_DATA)) == "67384529")
   println(calculate(parseInput("853192647")))
 }
