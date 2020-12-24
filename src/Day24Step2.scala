@@ -1,6 +1,10 @@
 package org.elmarweber.adventofcode2020
 
+import akka.japi.Pair
+
+import java.lang.Long
 import scala.io.Source
+import scala.collection.JavaConverters._
 
 object Day24Step2 extends App {
   val TEST_DATA = """sesenwnenenewseeswwswswwnenewsewsw
@@ -66,6 +70,7 @@ object Day24Step2 extends App {
   def White = false
   def Black = true
 
+  // 7300ms
   def iterate(tiles: TileMap, turns: Int = 100): TileMap = {
     if (turns == 0) return tiles
     // pad playing field with adjacent tiles, could be made sparser by only adding tiles that actually change
@@ -75,14 +80,98 @@ object Day24Step2 extends App {
       }.toMap
     }
     val nextTiles = paddedTiles.transform { case ((x, y), t) =>
-      val nrOfBlackTiles = AllDirections.count { d =>
-        tiles.getOrElse((x + d.deltaX, y + d.deltaY), White) == Black
-      }
-      if (t == Black && (nrOfBlackTiles == 0 || nrOfBlackTiles > 2)) White
-      else if (t == White && nrOfBlackTiles == 2) Black
-      else t
+      newTileState(countBlackTiles(paddedTiles, x, y), t)
     }
     iterate(nextTiles, turns - 1)
+  }
+
+
+  @inline
+  def countBlackTiles(tiles: collection.mutable.HashMap[(Double, Double), Boolean], x: Double, y: Double): Int = {
+    AllDirections.count { d =>
+      tiles.getOrElse((x + d.deltaX, y + d.deltaY), White) == Black
+    }
+  }
+
+  @inline
+  def countBlackTiles(tiles: TileMap, x: Double, y: Double): Int = {
+    AllDirections.count { d =>
+      tiles.getOrElse((x + d.deltaX, y + d.deltaY), White) == Black
+    }
+  }
+
+  @inline
+  def newTileState(nrOfBlackTiles: Int, t: Boolean) = {
+    if (t == Black && (nrOfBlackTiles == 0 || nrOfBlackTiles > 2)) White
+    else if (t == White && nrOfBlackTiles == 2) Black
+    else t
+  }
+
+  //7000ms
+  def iterateSparse(tiles: TileMap, turns: Int = 100): TileMap = {
+    if (turns == 0) return tiles
+    val nextTiles = tiles
+      .foldLeft(tiles) { case (newTiles, ((x, y), t)) =>
+        val addedTiles = AllDirections
+          .map { d =>
+            val (nx, ny) = (x + d.deltaX, y + d.deltaY)
+            if (tiles.isDefinedAt((nx, ny))) {
+              None // skip, already in normal iteration
+            } else {
+              val newState = newTileState(countBlackTiles(tiles, nx, ny), White)
+              if (newState == White) None
+              else Some((nx, ny) -> Black)
+            }
+          }.collect {
+            case Some(v) => v
+          }.toMap
+        newTiles ++ addedTiles + ((x, y) -> newTileState(countBlackTiles(tiles, x, y), t))
+      }
+      //.filter { case (_, v) => v == Black} // also made no difference, size of map doesn't impact, boils down to performance of map
+    iterate(nextTiles, turns - 1)
+  }
+
+
+  // 300ms, profiler shows issues in Java boxing/unboxing
+  def iterateMutableSet(tiles: TileMap, turns: Int = 100): TileMap = {
+    var field = collection.mutable.HashSet.empty[(Double, Double)]
+    tiles.foreach { case (k, v) => if (v == Black) field.add(k) }
+
+    (1 to turns).foreach { _ =>
+      val nextField = collection.mutable.HashSet.empty[(Double, Double)]
+      val counts = collection.mutable.HashMap.empty[(Double, Double), Int]
+
+      field.foreach { case (x, y) =>
+        AllDirections.foreach { d =>
+          val k = (x + d.deltaX, y + d.deltaY)
+          counts.update(k, counts.getOrElse(k, 0) + 1)
+        }
+      }
+
+      counts.foreach { case (k, count) =>
+        if (newTileState(count, field.contains(k)) == Black) {
+          nextField.add(k)
+        }
+      }
+
+      field = nextField
+    }
+    field.map { v => v -> Black}.toMap
+  }
+
+
+  // 150 ms (has a bug somewhere I didn't want to dig into further, but executes same ops as scala version above
+  // next gets really to JVM level, e.g. is Int better? and maybe the scala/java conversion take also couple of ms,
+  // but order of magnitude what is possible I'd say
+  def iterateMutableSetJava(tiles: TileMap, turns: Int = 100): TileMap = {
+    val jMap = tiles.map { case ((x, y), v) =>
+      new Pair(Double.box(x), Double.box(y)) -> Boolean.box(v)
+    }.asJava
+    val java = new Day24Step2J()
+    val jResult = java.iterateJava(jMap, turns)
+    jResult.asScala.map { case (k, v) =>
+      (k.first.toDouble, k.second.toDouble) -> v.booleanValue()
+    }.toMap
   }
 
   def calculate(input: List[List[Direction]], turns: Int = 100): Int = {
@@ -91,12 +180,17 @@ object Day24Step2 extends App {
       val tileStatus = tiles.getOrElse((x, y), White)
       tiles + ((x, y) -> ! tileStatus)
     }
-    iterate(initTiles, turns).values.count(_ == Black)
+    val start = System.currentTimeMillis()
+    val result = iterateMutableSet(initTiles, turns).values.count(_ == Black)
+    println(System.currentTimeMillis() - start)
+    result
   }
 
-  assert(calculate(parseInput(TEST_DATA), 1) == 15)
-  assert(calculate(parseInput(TEST_DATA), 2) == 12)
-  assert(calculate(parseInput(TEST_DATA), 3) == 25)
-  assert(calculate(parseInput(TEST_DATA)) == 2208)
-  println(calculate(parseInput(Source.fromFile("./adventofcode-data/day24_input.txt").mkString)))
+//  assert(calculate(parseInput(TEST_DATA), 1) == 15)
+//  assert(calculate(parseInput(TEST_DATA), 2) == 12)
+//  assert(calculate(parseInput(TEST_DATA), 3) == 25)
+//  assert(calculate(parseInput(TEST_DATA)) == 2208)
+  while (true) {
+    assert(calculate(parseInput(Source.fromFile("./adventofcode-data/day24_input.txt").mkString)) == 4280)
+  }
 }
